@@ -1,0 +1,14 @@
+# 环境变量文件 —— 里面是 API Key，绝对不能提交到 Git
+.env
+
+# Python 运行产生的缓存目录
+__pycache__/
+*.pyc
+
+# 虚拟环境目录
+venv/
+.venv/
+
+# IDE 配置（PyCharm / VS Code）
+.idea/
+.vscode/

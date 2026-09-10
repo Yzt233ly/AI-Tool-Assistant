@@ -1,0 +1,17 @@
+# 依赖清单 —— 用 pip install -r requirements.txt 一键安装
+
+# Web 框架（提供 HTTP 接口 + 前端页面）
+fastapi
+uvicorn
+
+# 从 .env 文件加载环境变量（存放 API Key）
+python-dotenv
+
+# 发送 HTTP 请求（工具里调用外部 API 用）
+httpx
+
+# LangChain 核心（工具装饰器 @tool、消息类型等）
+langchain-core
+
+# LangChain 的 OpenAI 兼容接口（DeepSeek 用的是 OpenAI 兼容协议）
+langchain-openai

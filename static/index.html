@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Tool Assistant</title>
+  <style>
+    /* 简单的全局样式：统一字体、配色、去掉默认边距 */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+      background: #f5f6fa;
+      color: #2f3542;
+      display: flex;
+      justify-content: center;
+      min-height: 100vh;
+    }
+    .container {
+      width: 100%;
+      max-width: 720px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    h1 { font-size: 24px; color: #1e3799; }
+    .subtitle { font-size: 14px; color: #747d8c; }
+
+    /* 示例问题按钮区域 */
+    .examples { display: flex; flex-wrap: wrap; gap: 8px; }
+    .example {
+      border: 1px solid #dfe4ea;
+      background: #fff;
+      color: #1e3799;
+      padding: 6px 12px;
+      border-radius: 16px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    .example:hover { background: #eef2ff; }
+
+    /* 聊天记录区域 */
+    .chat {
+      background: #fff;
+      border: 1px solid #e3e7ef;
+      border-radius: 12px;
+      padding: 16px;
+      min-height: 320px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      overflow-y: auto;
+    }
+    .msg { max-width: 85%; padding: 10px 14px; border-radius: 12px; font-size: 14px; line-height: 1.6; white-space: pre-wrap; }
+    .msg.user { align-self: flex-end; background: #1e3799; color: #fff; }
+    .msg.assistant { align-self: flex-start; background: #f1f2f6; color: #2f3542; }
+    /* 工具调用提示的样式 */
+    .tool-note {
+      align-self: flex-start;
+      font-size: 12px;
+      color: #8c7a1a;
+      background: #fff8e1;
+      border: 1px solid #f0e6c0;
+      border-radius: 8px;
+      padding: 6px 10px;
+    }
+    .loading { align-self: flex-start; font-size: 13px; color: #a4b0be; }
+
+    /* 输入区域 */
+    .input-row { display: flex; gap: 8px; }
+    input {
+      flex: 1;
+      padding: 12px 14px;
+      border: 1px solid #dfe4ea;
+      border-radius: 8px;
+      font-size: 14px;
+    }
+    input:focus { outline: none; border-color: #1e3799; }
+    button#send {
+      padding: 12px 20px;
+      background: #1e3799;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    button#send:hover { background: #273c75; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>AI Tool Assistant</h1>
+    <p class="subtitle">我能查汇率、查天气、讲名言 —— 背后是 LLM 的 Tool Calling。</p>
+
+    <!-- 示例问题：点一下自动填入输入框，方便快速测试 -->
+    <div class="examples">
+      <button class="example">100 美元等于多少人民币？</button>
+      <button class="example">北京现在天气怎么样？</button>
+      <button class="example">给我来一条名言</button>
+    </div>
+
+    <!-- 聊天记录会显示在这里 -->
+    <div id="chat" class="chat"></div>
+
+    <!-- 输入框 + 发送按钮 -->
+    <div class="input-row">
+      <input id="input" type="text" placeholder="输入你的问题，回车发送" />
+      <button id="send">发送</button>
+    </div>
+  </div>
+
+  <script>
+    const chatBox = document.getElementById('chat');
+    const input = document.getElementById('input');
+    const sendBtn = document.getElementById('send');
+
+    // 在聊天区追加一条消息。role 决定样式（user / assistant），
+    // 额外传入 toolNotes 时，会在消息上方显示「调用了哪些工具」。
+    function addMessage(role, text, toolNotes) {
+      if (toolNotes && toolNotes.length > 0) {
+        const note = document.createElement('div');
+        note.className = 'tool-note';
+        // 把每个工具名和参数拼成一句提示
+        note.textContent = '已调用工具：' + toolNotes
+          .map(t => t.name + '(' + JSON.stringify(t.args) + ')')
+          .join('、');
+        chatBox.appendChild(note);
+      }
+      const msg = document.createElement('div');
+      msg.className = 'msg ' + role;
+      msg.textContent = text;
+      chatBox.appendChild(msg);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    // 核心：把用户输入 POST 到 /chat 接口，拿到回复后展示
+    async function send() {
+      const question = input.value.trim();
+      if (!question) return;
+
+      addMessage('user', question);
+      input.value = '';
+
+      // 显示「思考中」的占位提示
+      const loading = document.createElement('div');
+      loading.className = 'loading';
+      loading.textContent = '思考中...';
+      chatBox.appendChild(loading);
+      chatBox.scrollTop = chatBox.scrollHeight;
+
+      try {
+        const res = await fetch('/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: question }),
+        });
+        const data = await res.json();
+        // 后端返回 reply（最终回答）和 tools（调用过的工具）
+        addMessage('assistant', data.reply, data.tools);
+      } catch (err) {
+        addMessage('assistant', '请求失败：' + err.message);
+      } finally {
+        loading.remove();
+      }
+    }
+
+    sendBtn.addEventListener('click', send);
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') send();
+    });
+
+    // 点击示例问题按钮：把文字填入输入框并直接发送
+    document.querySelectorAll('.example').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        input.value = btn.textContent;
+        send();
+      });
+    });
+  </script>
+</body>
+</html>
